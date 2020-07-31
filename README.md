@@ -7,10 +7,6 @@ This is forked from https://jaytaylor.com/html2text with the following changes:
 * output text/gemini format
 * use footnote style references
 
-The original text of the readme is below
-
----
-
 ## Introduction
 
 Turns HTML into text/gemini to be served over gemini, or incorporated into a client.
