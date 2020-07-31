@@ -1,6 +1,6 @@
 # html2gemini
 
-## Converts HTML into Gemini text/gemini (gemtext)
+## A Go library to converts HTML into Gemini text/gemini (gemtext)
 
 This is forked from https://jaytaylor.com/html2text with the following changes:
 
@@ -22,7 +22,9 @@ go get github.com/LukeEmmet/html2gemini
 
 ## Example usage
 
-Coming soon
+See https://github.com/LukeEmmet/html2gmi-cli which is a practical command line application that uses this library.
+
+To simplify the html passed to this library, you could simplify or sanitise it first, for example using https://github.com/philipjkim/goreadability
 
 ## Unit-tests
 
