@@ -19,7 +19,7 @@ type Options struct {
 	PrettyTables        bool                 // Turns on pretty ASCII rendering for table elements.
 	PrettyTablesOptions *PrettyTablesOptions // Configures pretty ASCII rendering for table elements.
 	OmitLinks           bool                 // Turns on omitting links
-	CitationStyleLinks  bool                 // Uses citation style links like [1]
+	GeminiCitationStyleLinks  bool                 // Uses Gemini citation style links like [1] then => link [1] link in footer
 }
 
 // PrettyTablesOptions overrides tablewriter behaviors
@@ -80,8 +80,8 @@ func FromHTMLNode(doc *html.Node, o ...Options) (string, error) {
 		return "", err
 	}
 
-	if ctx.options.CitationStyleLinks && ctx.citationCount > 0 {
-		ctx.emitCitations()
+	if ctx.options.GeminiCitationStyleLinks && ctx.citationCount > 0 {
+		ctx.emitGeminiCitations()
 	}
 
 	text := strings.TrimSpace(newlineRe.ReplaceAllString(
@@ -155,6 +155,8 @@ func (tableCtx *tableTraverseContext) init() {
 func (ctx *textifyTraverseContext) handleElement(node *html.Node) error {
 	ctx.justClosedDiv = false
 
+    prefix := ""
+    
 	switch node.DataAtom {
 	case atom.Br:
 		return ctx.emit("\n")
@@ -165,24 +167,20 @@ func (ctx *textifyTraverseContext) handleElement(node *html.Node) error {
 			return err
 		}
 
-		str := subCtx.buf.String()
-		dividerLen := 0
-		for _, line := range strings.Split(str, "\n") {
-			if lineLen := len([]rune(line)); lineLen-1 > dividerLen {
-				dividerLen = lineLen - 1
-			}
-		}
-		var divider string
+		str := strings.TrimSpace(subCtx.buf.String())
+
 		if node.DataAtom == atom.H1 {
-			divider = strings.Repeat("*", dividerLen)
-		} else {
-			divider = strings.Repeat("-", dividerLen)
+            prefix = "# "
+		}
+		if node.DataAtom == atom.H2 {
+            prefix = "## "
 		}
 
 		if node.DataAtom == atom.H3 {
-			return ctx.emit("\n\n" + str + "\n" + divider + "\n\n")
+            prefix = "### "
 		}
-		return ctx.emit("\n\n" + divider + "\n" + str + "\n" + divider + "\n\n")
+        
+		return ctx.emit("\n" + prefix + str + "\n")
 
 	case atom.Blockquote:
 		ctx.blockquoteLevel++
@@ -264,8 +262,8 @@ func (ctx *textifyTraverseContext) handleElement(node *html.Node) error {
 			attrVal = ctx.normalizeHrefLink(attrVal)
 			// Don't print link href if it matches link element content or if the link is empty.
 			if !ctx.options.OmitLinks && attrVal != "" && linkText != attrVal {
-				if ctx.options.CitationStyleLinks {
-					hrefLink = ctx.addCitation(attrVal)
+				if ctx.options.GeminiCitationStyleLinks {
+					hrefLink = ctx.addGeminiCitation(attrVal)
 				} else {
 					hrefLink = "( " + attrVal + " )"
 				}
@@ -286,9 +284,11 @@ func (ctx *textifyTraverseContext) handleElement(node *html.Node) error {
 		return ctx.traverseChildren(node)
 
 	case atom.Pre:
+		ctx.emit("```\n")
 		ctx.isPre = true
 		err := ctx.traverseChildren(node)
 		ctx.isPre = false
+		ctx.emit("\n```")
 		return err
 
 	case atom.Style, atom.Script, atom.Head:
@@ -319,7 +319,7 @@ func (ctx *textifyTraverseContext) handleTableElement(node *html.Node) error {
 
 	switch node.DataAtom {
 	case atom.Table:
-		if err := ctx.emit("\n\n"); err != nil {
+		if err := ctx.emit("\n\n```\n"); err != nil {
 			return err
 		}
 
@@ -362,7 +362,7 @@ func (ctx *textifyTraverseContext) handleTableElement(node *html.Node) error {
 			return err
 		}
 
-		return ctx.emit("\n\n")
+		return ctx.emit("```\n\n")
 
 	case atom.Tfoot:
 		ctx.tableCtx.isInFooter = true
@@ -535,11 +535,11 @@ func (ctx *textifyTraverseContext) normalizeHrefLink(link string) string {
 	return link
 }
 
-func formatCitation(idx int) string {
+func formatGeminiCitation(idx int) string {
 	return fmt.Sprintf("[%d]", idx)
 }
 
-func (ctx *textifyTraverseContext) addCitation(url string) string {
+func (ctx *textifyTraverseContext) addGeminiCitation(url string) string {
 	idx, ok := ctx.citationMap[url]
 
 	if !ok {
@@ -548,10 +548,10 @@ func (ctx *textifyTraverseContext) addCitation(url string) string {
 		ctx.citationMap[url] = idx
 	}
 
-	return formatCitation(idx)
+	return formatGeminiCitation(idx)
 }
 
-func (ctx *textifyTraverseContext) emitCitations() {
+func (ctx *textifyTraverseContext) emitGeminiCitations() {
 	// this method writes to the buffer directly instead of using `emit`, b/c we do not want to split long links
 	ctx.buf.WriteString("\n\n")
 
@@ -563,7 +563,10 @@ func (ctx *textifyTraverseContext) emitCitations() {
 	}
 
 	for i, link := range links {
-		ctx.buf.WriteString(formatCitation(i + 1))
+		ctx.buf.WriteString("=> ")
+		ctx.buf.WriteString(link)
+		ctx.buf.WriteByte(' ')
+		ctx.buf.WriteString(formatGeminiCitation(i + 1))
 		ctx.buf.WriteByte(' ')
 		ctx.buf.WriteString(link)
 		ctx.buf.WriteByte('\n')

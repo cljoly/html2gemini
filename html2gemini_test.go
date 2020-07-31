@@ -141,7 +141,7 @@ func TestParagraphsAndBreaks(t *testing.T) {
 		},
 		{
 			"<pre>test1\ntest 2\n\ntest  3</pre>",
-			"test1\ntest 2\n\ntest  3",
+			"```\ntest1\ntest 2\n\ntest  3\n```",
 		},
 	}
 
@@ -166,7 +166,7 @@ func TestTables(t *testing.T) {
 			// +--+--+
 			// |  |  |
 			// +--+--+
-			"+--+--+\n|  |  |\n+--+--+",
+			"```\n+--+--+\n|  |  |\n+--+--+\n```",
 			"",
 		},
 		{
@@ -174,7 +174,7 @@ func TestTables(t *testing.T) {
 			// +-------+-------+
 			// | cell1 | cell2 |
 			// +-------+-------+
-			"+-------+-------+\n| cell1 | cell2 |\n+-------+-------+",
+			"```\n+-------+-------+\n| cell1 | cell2 |\n+-------+-------+\n```",
 			"cell1 cell2",
 		},
 		{
@@ -183,7 +183,7 @@ func TestTables(t *testing.T) {
 			// | row1 |
 			// | row2 |
 			// +------+
-			"+------+\n| row1 |\n| row2 |\n+------+",
+			"```\n+------+\n| row1 |\n| row2 |\n+------+\n```",
 			"row1 row2",
 		},
 		{
@@ -198,16 +198,16 @@ func TestTables(t *testing.T) {
 			// | Row-1-Col-1-Msg2               |             |
 			// | Row-2-Col-1                    | Row-2-Col-2 |
 			// +--------------------------------+-------------+
-			`+--------------------------------+-------------+
+			"```\n" + `+--------------------------------+-------------+
 | Row-1-Col-1-Msg123456789012345 | Row-1-Col-2 |
 | Row-1-Col-1-Msg2               |             |
 | Row-2-Col-1                    | Row-2-Col-2 |
-+--------------------------------+-------------+`,
++--------------------------------+-------------+` + "\n```",
 			`Row-1-Col-1-Msg123456789012345
 
 Row-1-Col-1-Msg2
 
-Row-1-Col-2 Row-2-Col-1 Row-2-Col-2`,
+Row-1-Col-2 Row-2-Col-1 Row-2-Col-2` ,
 		},
 		{
 			`<table>
@@ -218,7 +218,7 @@ Row-1-Col-2 Row-2-Col-1 Row-2-Col-2`,
 			// | cell1-1 | cell1-2 |
 			// | cell2-1 | cell2-2 |
 			// +---------+---------+
-			"+---------+---------+\n| cell1-1 | cell1-2 |\n| cell2-1 | cell2-2 |\n+---------+---------+",
+			"```\n+---------+---------+\n| cell1-1 | cell1-2 |\n| cell2-1 | cell2-2 |\n+---------+---------+\n```",
 			"cell1-1 cell1-2 cell2-1 cell2-2",
 		},
 		{
@@ -234,14 +234,14 @@ Row-1-Col-2 Row-2-Col-1 Row-2-Col-2`,
 					<tr><td>Row 2 Col 1</td><td>Row 2 Col 2</td></tr>
 				</tbody>
 			</table>`,
-			`+-------------+-------------+
+			"```\n" + `+-------------+-------------+
 |  HEADER 1   |  HEADER 2   |
 +-------------+-------------+
 | Row 1 Col 1 | Row 1 Col 2 |
 | Row 2 Col 1 | Row 2 Col 2 |
 +-------------+-------------+
 |  FOOTER 1   |  FOOTER 2   |
-+-------------+-------------+`,
++-------------+-------------+` + "\n```",
 			"Header 1 Header 2 Footer 1 Footer 2 Row 1 Col 1 Row 1 Col 2 Row 2 Col 1 Row 2 Col 2",
 		},
 		// Two tables in same HTML (goal is to test that context is
@@ -273,7 +273,7 @@ Row-1-Col-2 Row-2-Col-1 Row-2-Col-2`,
 					</tbody>
 				</table>
 			</p>`,
-			`+---------------------+---------------------+
+			"```\n" + `+---------------------+---------------------+
 |  TABLE 1 HEADER 1   |  TABLE 1 HEADER 2   |
 +---------------------+---------------------+
 | Table 1 Row 1 Col 1 | Table 1 Row 1 Col 2 |
@@ -281,7 +281,7 @@ Row-1-Col-2 Row-2-Col-1 Row-2-Col-2`,
 +---------------------+---------------------+
 |  TABLE 1 FOOTER 1   |  TABLE 1 FOOTER 2   |
 +---------------------+---------------------+
-
+` + "```\n" + "\n```" + `
 +---------------------+---------------------+
 |  TABLE 2 HEADER 1   |  TABLE 2 HEADER 2   |
 +---------------------+---------------------+
@@ -289,14 +289,14 @@ Row-1-Col-2 Row-2-Col-1 Row-2-Col-2`,
 | Table 2 Row 2 Col 1 | Table 2 Row 2 Col 2 |
 +---------------------+---------------------+
 |  TABLE 2 FOOTER 1   |  TABLE 2 FOOTER 2   |
-+---------------------+---------------------+`,
++---------------------+---------------------+` + "\n```",
 			`Table 1 Header 1 Table 1 Header 2 Table 1 Footer 1 Table 1 Footer 2 Table 1 Row 1 Col 1 Table 1 Row 1 Col 2 Table 1 Row 2 Col 1 Table 1 Row 2 Col 2
 
 Table 2 Header 1 Table 2 Header 2 Table 2 Footer 1 Table 2 Footer 2 Table 2 Row 1 Col 1 Table 2 Row 1 Col 2 Table 2 Row 2 Col 1 Table 2 Row 2 Col 2`,
 		},
 		{
 			"_<table><tr><td>cell</td></tr></table>_",
-			"_\n\n+------+\n| cell |\n+------+\n\n_",
+			"_\n\n```\n+------+\n| cell |\n+------+\n```\n\n_",
 			"_\n\ncell\n\n_",
 		},
 		{
@@ -317,7 +317,7 @@ Table 2 Header 1 Table 2 Header 2 Table 2 Footer 1 Table 2 Footer 2 Table 2 Row 
 					<td>$1.99</td>
 				</tr>
 			</table>`,
-			`+--------+--------------------------------+--------+
+			"```\n" + `+--------+--------------------------------+--------+
 |  ITEM  |          DESCRIPTION           | PRICE  |
 +--------+--------------------------------+--------+
 | Golang | Open source programming        | $10.99 |
@@ -327,7 +327,7 @@ Table 2 Header 1 Table 2 Header 2 Table 2 Footer 1 Table 2 Footer 2 Table 2 Row 
 | Hermes | Programmatically create        | $1.99  |
 |        | beautiful e-mails using        |        |
 |        | Golang.                        |        |
-+--------+--------------------------------+--------+`,
++--------+--------------------------------+--------+` + "\n```",
 			"Item Description Price Golang Open source programming language that makes it easy to build simple, reliable, and efficient software $10.99 Hermes Programmatically create beautiful e-mails using Golang. $1.99",
 		},
 	}
@@ -536,7 +536,7 @@ func TestCitationStyleLinks(t *testing.T) {
 		},
 		{
 			`<a href="http://example.com/"></a>`,
-			"[1]\n\n[1] http://example.com/",
+			"[1]\n\n=> http://example.com/ [1] http://example.com/",
 		},
 		{
 			`<a href="">Link</a>`,
@@ -544,36 +544,36 @@ func TestCitationStyleLinks(t *testing.T) {
 		},
 		{
 			`<a href="http://example1.com/">Link1</a><a href="http://example2.com/">Link2</a>`,
-			"Link1 [1] Link2 [2]\n\n[1] http://example1.com/\n[2] http://example2.com/",
+			"Link1 [1] Link2 [2]\n\n=> http://example1.com/ [1] http://example1.com/\n=> http://example2.com/ [2] http://example2.com/",
 		},
 		{
 			`<a href="http://example1.com/">Link1</a> (<a href="http://example2.com/">Link2</a>)`,
-			"Link1 [1] (Link2 [2])\n\n[1] http://example1.com/\n[2] http://example2.com/",
+			"Link1 [1] (Link2 [2])\n\n=> http://example1.com/ [1] http://example1.com/\n=> http://example2.com/ [2] http://example2.com/",
 		},
 		{
 			`<a href="http://example1.com/">Link1</a>? <a href="http://example2.com/">Link2</a>!`,
-			"Link1 [1]? Link2 [2]!\n\n[1] http://example1.com/\n[2] http://example2.com/",
+			"Link1 [1]? Link2 [2]!\n\n=> http://example1.com/ [1] http://example1.com/\n=> http://example2.com/ [2] http://example2.com/",
 		},
 		{
 			`<a href="http://example1.com/">Link1</a><a href="http://example1.com/">Link1 again</a>`,
-			"Link1 [1] Link1 again [1]\n\n[1] http://example1.com/",
+			"Link1 [1] Link1 again [1]\n\n=> http://example1.com/ [1] http://example1.com/",
 		},
 		{
 			`<a href="http://example.com/"><span class="a">Link</span></a>`,
-			"Link [1]\n\n[1] http://example.com/",
+			"Link [1]\n\n=> http://example.com/ [1] http://example.com/",
 		},
 		{
 			"<a href='http://example.com/'>\n\t<span class='a'>Link</span>\n\t</a>",
-			"Link [1]\n\n[1] http://example.com/",
+			"Link [1]\n\n=> http://example.com/ [1] http://example.com/",
 		},
 		{
 			`<a href="http://example.com/"><img src="http://example.ru/hello.jpg" alt="Example"></a>`,
-			"Example [1]\n\n[1] http://example.com/",
+			"Example [1]\n\n=> http://example.com/ [1] http://example.com/",
 		},
 	}
 
 	for _, testCase := range testCases {
-		if msg, err := wantString(testCase.input, testCase.output, Options{CitationStyleLinks: true}); err != nil {
+		if msg, err := wantString(testCase.input, testCase.output, Options{GeminiCitationStyleLinks: true}); err != nil {
 			t.Error(err)
 		} else if len(msg) > 0 {
 			t.Log(msg)
@@ -637,31 +637,31 @@ func TestHeadings(t *testing.T) {
 	}{
 		{
 			"<h1>Test</h1>",
-			"****\nTest\n****",
+			"# Test",
 		},
 		{
 			"\t<h1>\nTest</h1> ",
-			"****\nTest\n****",
+			"# Test",
 		},
 		{
 			"\t<h1>\nTest line 1<br>Test 2</h1> ",
-			"***********\nTest line 1\nTest 2\n***********",
+			"# Test line 1\nTest 2",
 		},
 		{
 			"<h1>Test</h1> <h1>Test</h1>",
-			"****\nTest\n****\n\n****\nTest\n****",
+			"# Test\n\n# Test",
 		},
 		{
 			"<h2>Test</h2>",
-			"----\nTest\n----",
+			"## Test",
 		},
 		{
 			"<h1><a href='http://example.com/'>Test</a></h1>",
-			"****************************\nTest ( http://example.com/ )\n****************************",
+			"# Test ( http://example.com/ )",
 		},
 		{
 			"<h3> <span class='a'>Test </span></h3>",
-			"Test\n----",
+			"### Test",
 		},
 	}
 
@@ -1057,29 +1057,33 @@ func Example() {
 				<tr><td>Row 2 Col 1</td><td>Row 2 Col 2</td></tr>
 			</tbody>
 		</table>
+
+<pre>
+Preformatted content    with    spaces
+    and indentation
+</pre>
 	</body>
 </html>`
 
-	text, err := FromString(inputHTML, Options{PrettyTables: true})
+	text, err := FromString(inputHTML, Options{PrettyTables: true, GeminiCitationStyleLinks: true})
 	if err != nil {
 		panic(err)
 	}
 	fmt.Println(text)
 
 	// Output:
-	// Mega Service ( http://jaytaylor.com/ )
+	// Mega Service [1]
 	//
-	// ******************************************
-	// Welcome to your new account on my service!
-	// ******************************************
+	// # Welcome to your new account on my service!
 	//
 	// Here is some more information:
 	//
-	// * Link 1: Example.com ( https://example.com )
-	// * Link 2: Example2.com ( https://example2.com )
+	// * Link 1: Example.com [2]
+	// * Link 2: Example2.com [3]
 	// * Something else
 	//
-	// +-------------+-------------+
+	// ```
+    // +-------------+-------------+
 	// |  HEADER 1   |  HEADER 2   |
 	// +-------------+-------------+
 	// | Row 1 Col 1 | Row 1 Col 2 |
@@ -1087,4 +1091,15 @@ func Example() {
 	// +-------------+-------------+
 	// |  FOOTER 1   |  FOOTER 2   |
 	// +-------------+-------------+
+    // ```
+    //
+    //```
+    //Preformatted content    with    spaces
+    //    and indentation
+    //
+    //```
+    //
+    // => http://jaytaylor.com/ [1] http://jaytaylor.com/
+    // => https://example.com [2] https://example.com
+    // => https://example2.com [3] https://example2.com
 }
