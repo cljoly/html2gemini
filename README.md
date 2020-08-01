@@ -22,7 +22,7 @@ go get github.com/LukeEmmet/html2gemini
 
 ## Example usage
 
-See https://github.com/LukeEmmet/html2gmi-cli which is a practical command line application that uses this library.
+See https://github.com/LukeEmmet/html2gmi which is a practical command line application that uses this library.
 
 To simplify the html passed to this library, you could simplify or sanitise it first, for example using https://github.com/philipjkim/goreadability
 
