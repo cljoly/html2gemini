@@ -64,6 +64,20 @@ func NewPrettyTablesOptions() *PrettyTablesOptions {
 	}
 }
 
+
+func FlushCitations(ctx *textifyTraverseContext) {
+    
+    if ctx.emitParaCount > 2 {
+        if ctx.options.GeminiCitationStyleLinks && ctx.citationCount > 0 {
+            ctx.emitGeminiCitations()
+            ctx.citationCount = 0
+            ctx.citationMap = map[string]int{}
+            ctx.emitParaCount  = 0
+        }
+    } else {
+        ctx.emitParaCount = ctx.emitParaCount + 1
+    }
+}
 // FromHTMLNode renders text output from a pre-parsed HTML document.
 func FromHTMLNode(doc *html.Node, o ...Options) (string, error) {
 	var options Options
@@ -80,10 +94,9 @@ func FromHTMLNode(doc *html.Node, o ...Options) (string, error) {
 		return "", err
 	}
 
-	if ctx.options.GeminiCitationStyleLinks && ctx.citationCount > 0 {
-		ctx.emitGeminiCitations()
-	}
-
+	ctx.emitParaCount = 10
+    FlushCitations(&ctx)
+    
 	text := strings.TrimSpace(newlineRe.ReplaceAllString(
 		strings.Replace(ctx.buf.String(), "\n ", "\n", -1), "\n\n"),
 	)
@@ -133,6 +146,7 @@ type textifyTraverseContext struct {
 	isPre           bool
 	citationCount   int
 	citationMap     map[string]int
+    emitParaCount   int
 }
 
 // tableTraverseContext holds table ASCII-form related context.
@@ -170,19 +184,27 @@ func (ctx *textifyTraverseContext) handleElement(node *html.Node) error {
 		str := strings.TrimSpace(subCtx.buf.String())
 
 		if node.DataAtom == atom.H1 {
+            ctx.emitParaCount = 10
+            FlushCitations(ctx)
             prefix = "# "
 		}
 		if node.DataAtom == atom.H2 {
+            ctx.emitParaCount = 10
+            FlushCitations(ctx)
             prefix = "## "
 		}
 
 		if node.DataAtom == atom.H3 {
+            ctx.emitParaCount = 10
+            FlushCitations(ctx)
             prefix = "### "
 		}
         
 		return ctx.emit("\n" + prefix + str + "\n")
 
 	case atom.Blockquote:
+        ctx.emitParaCount = 10
+        FlushCitations(ctx)
 		ctx.blockquoteLevel++
 		ctx.prefix = strings.Repeat(">", ctx.blockquoteLevel) + " "
 		if err := ctx.emit("\n"); err != nil {
@@ -302,6 +324,7 @@ func (ctx *textifyTraverseContext) handleElement(node *html.Node) error {
 
 // paragraphHandler renders node children surrounded by double newlines.
 func (ctx *textifyTraverseContext) paragraphHandler(node *html.Node) error {
+    FlushCitations(ctx)
 	if err := ctx.emit("\n\n"); err != nil {
 		return err
 	}
@@ -552,8 +575,10 @@ func (ctx *textifyTraverseContext) addGeminiCitation(url string) string {
 }
 
 func (ctx *textifyTraverseContext) emitGeminiCitations() {
+    
+    if ctx.citationCount > 0 {
 	// this method writes to the buffer directly instead of using `emit`, b/c we do not want to split long links
-	ctx.buf.WriteString("\n\n")
+	ctx.buf.WriteString("\n")
 
 	// citations are ordered by link --> bring them into the correct order first
 	links := make([]string, ctx.citationCount)
@@ -571,6 +596,9 @@ func (ctx *textifyTraverseContext) emitGeminiCitations() {
 		ctx.buf.WriteString(link)
 		ctx.buf.WriteByte('\n')
 	}
+    
+    ctx.buf.WriteByte('\n')
+    }
 }
 
 // renderEachChild visits each direct child of a node and collects the sequence of
