@@ -1,4 +1,4 @@
-package html2text
+package html2gemini
 
 import (
 	"bytes"

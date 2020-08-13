@@ -1,4 +1,4 @@
-package html2text
+package html2gemini
 
 import (
 	"bytes"
@@ -19,7 +19,19 @@ type Options struct {
 	PrettyTables        bool                 // Turns on pretty ASCII rendering for table elements.
 	PrettyTablesOptions *PrettyTablesOptions // Configures pretty ASCII rendering for table elements.
 	OmitLinks           bool                 // Turns on omitting links
-	GeminiCitationStyleLinks  bool                 // Uses Gemini citation style links like [1] then => link [1] link in footer
+	CitationStart       int                  //Start Citations from this number (default 1)
+	LinkEmitFrequency   int                  //emit gathered links after approximately every n paras (otherwise when new heading, or blockquote)
+}
+
+//NewOptions creates Options with default settings
+func NewOptions() *Options {
+	return &Options{
+		PrettyTables:        false,
+		PrettyTablesOptions: NewPrettyTablesOptions(),
+		OmitLinks:           false,
+		CitationStart:       1,
+		LinkEmitFrequency:   2,
+	}
 }
 
 // PrettyTablesOptions overrides tablewriter behaviors
@@ -64,20 +76,28 @@ func NewPrettyTablesOptions() *PrettyTablesOptions {
 	}
 }
 
+// FlushCitations emits a list of Gemini links gathered up to this point, if the para count exceeds the
+// emit frequency
+func (ctx *textifyTraverseContext) CheckFlushCitations() {
 
-func FlushCitations(ctx *textifyTraverseContext) {
-    
-    if ctx.emitParaCount > 2 {
-        if ctx.options.GeminiCitationStyleLinks && ctx.citationCount > 0 {
-            ctx.emitGeminiCitations()
-            ctx.citationCount = 0
-            ctx.citationMap = map[string]int{}
-            ctx.emitParaCount  = 0
-        }
-    } else {
-        ctx.emitParaCount = ctx.emitParaCount + 1
-    }
+//	if ctx.emitParaCount > ctx.options.LinkEmitFrequency &&  ctx.citationCount > 0 {
+	if ctx.emitParaCount > ctx.options.LinkEmitFrequency && len(ctx.linkArray) > (ctx.flushedToIndex + 1) {
+		ctx.FlushCitations()
+	} else {
+		ctx.emitParaCount += 1
+	}
 }
+
+func (ctx *textifyTraverseContext) FlushCitations() {
+	ctx.emitGeminiCitations()
+	ctx.ResetCitationCounters()
+}
+
+func (ctx *textifyTraverseContext) ResetCitationCounters() {
+	ctx.flushedToIndex = len(ctx.linkArray) - 1
+	ctx.emitParaCount = 0
+}
+
 // FromHTMLNode renders text output from a pre-parsed HTML document.
 func FromHTMLNode(doc *html.Node, o ...Options) (string, error) {
 	var options Options
@@ -86,17 +106,16 @@ func FromHTMLNode(doc *html.Node, o ...Options) (string, error) {
 	}
 
 	ctx := textifyTraverseContext{
-		buf:         bytes.Buffer{},
-		options:     options,
-		citationMap: map[string]int{},
+		buf:             bytes.Buffer{},
+		options:         options,
 	}
 	if err := ctx.traverse(doc); err != nil {
 		return "", err
 	}
 
-	ctx.emitParaCount = 10
-    FlushCitations(&ctx)
-    
+	//flush any remaining citations at the end
+	ctx.FlushCitations()
+
 	text := strings.TrimSpace(newlineRe.ReplaceAllString(
 		strings.Replace(ctx.buf.String(), "\n ", "\n", -1), "\n\n"),
 	)
@@ -144,9 +163,17 @@ type textifyTraverseContext struct {
 	blockquoteLevel int
 	lineLength      int
 	isPre           bool
-	citationCount   int
-	citationMap     map[string]int
-    emitParaCount   int
+
+	emitParaCount   int
+	linkArray 		[]citationLink
+	flushedToIndex	int
+
+}
+
+type citationLink struct {
+	index 	int
+	url		string
+	display string
 }
 
 // tableTraverseContext holds table ASCII-form related context.
@@ -169,42 +196,36 @@ func (tableCtx *tableTraverseContext) init() {
 func (ctx *textifyTraverseContext) handleElement(node *html.Node) error {
 	ctx.justClosedDiv = false
 
-    prefix := ""
-    
+	prefix := ""
+
 	switch node.DataAtom {
 	case atom.Br:
 		return ctx.emit("\n")
 
 	case atom.H1, atom.H2, atom.H3:
-		subCtx := textifyTraverseContext{}
-		if err := subCtx.traverseChildren(node); err != nil {
-			return err
-		}
-
-		str := strings.TrimSpace(subCtx.buf.String())
 
 		if node.DataAtom == atom.H1 {
-            ctx.emitParaCount = 10
-            FlushCitations(ctx)
-            prefix = "# "
+			ctx.FlushCitations()
+			prefix = "# "
 		}
 		if node.DataAtom == atom.H2 {
-            ctx.emitParaCount = 10
-            FlushCitations(ctx)
-            prefix = "## "
+			ctx.FlushCitations()
+			prefix = "## "
 		}
 
 		if node.DataAtom == atom.H3 {
-            ctx.emitParaCount = 10
-            FlushCitations(ctx)
-            prefix = "### "
+			ctx.FlushCitations()
+			prefix = "### "
 		}
-        
-		return ctx.emit("\n" + prefix + str + "\n")
+
+		ctx.emit("\n" + prefix)
+		if err := ctx.traverseChildren(node); err != nil {
+			return err
+		}
+		return ctx.emit("\n")
 
 	case atom.Blockquote:
-        ctx.emitParaCount = 10
-        FlushCitations(ctx)
+		ctx.FlushCitations()
 		ctx.blockquoteLevel++
 		ctx.prefix = strings.Repeat(">", ctx.blockquoteLevel) + " "
 		if err := ctx.emit("\n"); err != nil {
@@ -284,11 +305,7 @@ func (ctx *textifyTraverseContext) handleElement(node *html.Node) error {
 			attrVal = ctx.normalizeHrefLink(attrVal)
 			// Don't print link href if it matches link element content or if the link is empty.
 			if !ctx.options.OmitLinks && attrVal != "" && linkText != attrVal {
-				if ctx.options.GeminiCitationStyleLinks {
-					hrefLink = ctx.addGeminiCitation(attrVal)
-				} else {
-					hrefLink = "( " + attrVal + " )"
-				}
+				hrefLink = ctx.addGeminiCitation(attrVal, linkText)
 			}
 		}
 
@@ -324,7 +341,7 @@ func (ctx *textifyTraverseContext) handleElement(node *html.Node) error {
 
 // paragraphHandler renders node children surrounded by double newlines.
 func (ctx *textifyTraverseContext) paragraphHandler(node *html.Node) error {
-    FlushCitations(ctx)
+	ctx.CheckFlushCitations()
 	if err := ctx.emit("\n\n"); err != nil {
 		return err
 	}
@@ -562,43 +579,48 @@ func formatGeminiCitation(idx int) string {
 	return fmt.Sprintf("[%d]", idx)
 }
 
-func (ctx *textifyTraverseContext) addGeminiCitation(url string) string {
-	idx, ok := ctx.citationMap[url]
+func (ctx *textifyTraverseContext) addGeminiCitation(url string, display string) string {
 
-	if !ok {
-		ctx.citationCount += 1
-		idx = ctx.citationCount
-		ctx.citationMap[url] = idx
+
+	if url[0:1] == "#" {
+		//dont emit bookmarks to the same page (url starts #)
+		return ""
+	} else {
+		citation := citationLink{
+			index:   len(ctx.linkArray) + ctx.options.CitationStart,
+			display: display,
+			url:     url,
+		}
+		ctx.linkArray = append(ctx.linkArray, citation)
+		return formatGeminiCitation(citation.index)
 	}
 
-	return formatGeminiCitation(idx)
 }
 
 func (ctx *textifyTraverseContext) emitGeminiCitations() {
-    
-    if ctx.citationCount > 0 {
-	// this method writes to the buffer directly instead of using `emit`, b/c we do not want to split long links
-	ctx.buf.WriteString("\n")
 
-	// citations are ordered by link --> bring them into the correct order first
-	links := make([]string, ctx.citationCount)
+	if len(ctx.linkArray) > ctx.flushedToIndex + 1 {
+		//there are unflushed links
 
-	for k, v := range ctx.citationMap {
-		links[v-1] = k // arrays are 0-based, our citations are 1-based
-	}
+		// this method writes to the buffer directly instead of using `emit`, b/c we do not want to split long links
+		ctx.buf.WriteString("\n")
 
-	for i, link := range links {
-		ctx.buf.WriteString("=> ")
-		ctx.buf.WriteString(link)
-		ctx.buf.WriteByte(' ')
-		ctx.buf.WriteString(formatGeminiCitation(i + 1))
-		ctx.buf.WriteByte(' ')
-		ctx.buf.WriteString(link)
+
+		for i, link := range ctx.linkArray {
+
+			if i > ctx.flushedToIndex {
+				ctx.buf.WriteString("=> ")
+				ctx.buf.WriteString(link.url)
+				ctx.buf.WriteByte(' ')
+				ctx.buf.WriteString(formatGeminiCitation(link.index))
+				ctx.buf.WriteByte(' ')
+				ctx.buf.WriteString(link.display)
+				ctx.buf.WriteByte('\n')
+			}
+		}
+
 		ctx.buf.WriteByte('\n')
 	}
-    
-    ctx.buf.WriteByte('\n')
-    }
 }
 
 // renderEachChild visits each direct child of a node and collects the sequence of
