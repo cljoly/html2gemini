@@ -385,93 +385,6 @@ func TestStrippingLists(t *testing.T) {
 	}
 }
 
-func TestLinks(t *testing.T) {
-	testCases := []struct {
-		input  string
-		output string
-	}{
-		{
-			`<a></a>`,
-			``,
-		},
-		{
-			`<a href=""></a>`,
-			``,
-		},
-		{
-			`<a href="http://example.com/"></a>`,
-			`( http://example.com/ )`,
-		},
-		{
-			`<a href="">Link</a>`,
-			`Link`,
-		},
-		{
-			`<a href="http://example.com/">Link</a>`,
-			`Link ( http://example.com/ )`,
-		},
-		{
-			`<a href="http://example.com/"><span class="a">Link</span></a>`,
-			`Link ( http://example.com/ )`,
-		},
-		{
-			"<a href='http://example.com/'>\n\t<span class='a'>Link</span>\n\t</a>",
-			`Link ( http://example.com/ )`,
-		},
-		{
-			"<a href='mailto:contact@example.org'>Contact Us</a>",
-			`Contact Us ( contact@example.org )`,
-		},
-		{
-			"<a href=\"http://example.com:80/~user?aaa=bb&amp;c=d,e,f#foo\">Link</a>",
-			`Link ( http://example.com:80/~user?aaa=bb&c=d,e,f#foo )`,
-		},
-		{
-			"<a title='title' href=\"http://example.com/\">Link</a>",
-			`Link ( http://example.com/ )`,
-		},
-		{
-			"<a href=\"   http://example.com/ \"> Link </a>",
-			`Link ( http://example.com/ )`,
-		},
-		{
-			"<a href=\"http://example.com/a/\">Link A</a> <a href=\"http://example.com/b/\">Link B</a>",
-			`Link A ( http://example.com/a/ ) Link B ( http://example.com/b/ )`,
-		},
-		{
-			"<a href=\"%%LINK%%\">Link</a>",
-			`Link ( %%LINK%% )`,
-		},
-		{
-			"<a href=\"[LINK]\">Link</a>",
-			`Link ( [LINK] )`,
-		},
-		{
-			"<a href=\"{LINK}\">Link</a>",
-			`Link ( {LINK} )`,
-		},
-		{
-			"<a href=\"[[!unsubscribe]]\">Link</a>",
-			`Link ( [[!unsubscribe]] )`,
-		},
-		{
-			"<p>This is <a href=\"http://www.google.com\" >link1</a> and <a href=\"http://www.google.com\" >link2 </a> is next.</p>",
-			`This is link1 ( http://www.google.com ) and link2 ( http://www.google.com ) is next.`,
-		},
-		{
-			"<a href=\"http://www.google.com\" >http://www.google.com</a>",
-			`http://www.google.com`,
-		},
-	}
-
-	for _, testCase := range testCases {
-		if msg, err := wantString(testCase.input, testCase.output); err != nil {
-			t.Error(err)
-		} else if len(msg) > 0 {
-			t.Log(msg)
-		}
-	}
-}
 
 func TestOmitLinks(t *testing.T) {
 	testCases := []struct {
@@ -536,7 +449,7 @@ func TestCitationStyleLinks(t *testing.T) {
 		},
 		{
 			`<a href="http://example.com/"></a>`,
-			"[1]\n\n=> http://example.com/ [1] http://example.com/",
+			"[1]\n\n=> http://example.com/ [1]",
 		},
 		{
 			`<a href="">Link</a>`,
@@ -544,36 +457,36 @@ func TestCitationStyleLinks(t *testing.T) {
 		},
 		{
 			`<a href="http://example1.com/">Link1</a><a href="http://example2.com/">Link2</a>`,
-			"Link1 [1] Link2 [2]\n\n=> http://example1.com/ [1] http://example1.com/\n=> http://example2.com/ [2] http://example2.com/",
+			"Link1 [1] Link2 [2]\n\n=> http://example1.com/ [1] Link1\n=> http://example2.com/ [2] Link2",
 		},
 		{
 			`<a href="http://example1.com/">Link1</a> (<a href="http://example2.com/">Link2</a>)`,
-			"Link1 [1] (Link2 [2])\n\n=> http://example1.com/ [1] http://example1.com/\n=> http://example2.com/ [2] http://example2.com/",
+			"Link1 [1] (Link2 [2])\n\n=> http://example1.com/ [1] Link1\n=> http://example2.com/ [2] Link2",
 		},
 		{
 			`<a href="http://example1.com/">Link1</a>? <a href="http://example2.com/">Link2</a>!`,
-			"Link1 [1]? Link2 [2]!\n\n=> http://example1.com/ [1] http://example1.com/\n=> http://example2.com/ [2] http://example2.com/",
+			"Link1 [1]? Link2 [2]!\n\n=> http://example1.com/ [1] Link1\n=> http://example2.com/ [2] Link2",
 		},
 		{
 			`<a href="http://example1.com/">Link1</a><a href="http://example1.com/">Link1 again</a>`,
-			"Link1 [1] Link1 again [1]\n\n=> http://example1.com/ [1] http://example1.com/",
+			"Link1 [1] Link1 again [2]\n\n=> http://example1.com/ [1] Link1\n=> http://example1.com/ [2] Link1 again",
 		},
 		{
 			`<a href="http://example.com/"><span class="a">Link</span></a>`,
-			"Link [1]\n\n=> http://example.com/ [1] http://example.com/",
+			"Link [1]\n\n=> http://example.com/ [1] Link",
 		},
 		{
 			"<a href='http://example.com/'>\n\t<span class='a'>Link</span>\n\t</a>",
-			"Link [1]\n\n=> http://example.com/ [1] http://example.com/",
+			"Link [1]\n\n=> http://example.com/ [1] Link",
 		},
 		{
 			`<a href="http://example.com/"><img src="http://example.ru/hello.jpg" alt="Example"></a>`,
-			"Example [1]\n\n=> http://example.com/ [1] http://example.com/",
+			"Example [1]\n\n=> http://example.com/ [1] Example",
 		},
 	}
 
 	for _, testCase := range testCases {
-		if msg, err := wantString(testCase.input, testCase.output, Options{GeminiCitationStyleLinks: true}); err != nil {
+		if msg, err := wantString(testCase.input, testCase.output); err != nil {
 			t.Error(err)
 		} else if len(msg) > 0 {
 			t.Log(msg)
@@ -605,7 +518,7 @@ func TestImageAltTags(t *testing.T) {
 		// Images do matter if they are in a link.
 		{
 			`<a href="http://example.com/"><img src="http://example.ru/hello.jpg" alt="Example"/></a>`,
-			`Example ( http://example.com/ )`,
+			`Example [1]\n\n=> http://example.com/ [1] Example`,
 		},
 		{
 			`<a href="http://example.com/"><img src="http://example.ru/hello.jpg" alt="Example"></a>`,
@@ -657,7 +570,7 @@ func TestHeadings(t *testing.T) {
 		},
 		{
 			"<h1><a href='http://example.com/'>Test</a></h1>",
-			"# Test ( http://example.com/ )",
+			"# Test [1]",
 		},
 		{
 			"<h3> <span class='a'>Test </span></h3>",
@@ -873,15 +786,15 @@ func TestText(t *testing.T) {
 	</ul>
 `,
 			`hi
-hello google \( https://google.com \)
+hello google[1]
 
 test
 
 List:
 
-\* Foo \( foo \)
-\* Barsoap \( http://www.microshwhat.com/bar/soapy \)
-\* Baz`,
+* Foo[2]
+* Barsoap[3]
+* Baz`,
 		},
 		// Malformed input html.
 		{
@@ -898,13 +811,13 @@ List:
 		        <li>Baz</li>
 			</ul>
 		`,
-			`hi hello google \( https://google.com \) test
+			`hi hello google[1] test
 
 List:
 
-\* Foo \( foo \)
-\* Bar \( /\n[ \t]+bar/baz \)
-\* Baz`,
+* Foo[2]
+* Bar[3]
+* Baz`,
 		},
 	}
 
@@ -1065,7 +978,7 @@ Preformatted content    with    spaces
 	</body>
 </html>`
 
-	text, err := FromString(inputHTML, Options{PrettyTables: true, GeminiCitationStyleLinks: true})
+	text, err := FromString(inputHTML, Options{PrettyTables: true, LinkEmitFrequency: 100})
 	if err != nil {
 		panic(err)
 	}

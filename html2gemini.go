@@ -90,7 +90,6 @@ func (ctx *textifyTraverseContext) CheckFlushCitations() {
 
 func (ctx *textifyTraverseContext) FlushCitations() {
 	ctx.emitGeminiCitations()
-	ctx.ResetCitationCounters()
 }
 
 func (ctx *textifyTraverseContext) ResetCitationCounters() {
@@ -103,18 +102,25 @@ func FromHTMLNode(doc *html.Node, o ...Options) (string, error) {
 	var options Options
 	if len(o) > 0 {
 		options = o[0]
+	} else {
+		//no options provided we need to set some default options for non-zero
+		//types.
+
+		//start links at 1, not 0 if not specified
+		options.CitationStart = 1	//otherwise uses zero value which is 0
 	}
 
 	ctx := textifyTraverseContext{
 		buf:             bytes.Buffer{},
 		options:         options,
+		flushedToIndex: -1,
 	}
 	if err := ctx.traverse(doc); err != nil {
 		return "", err
 	}
 
 	//flush any remaining citations at the end
-	ctx.FlushCitations()
+	ctx.forceFlushGeminiCitations()
 
 	text := strings.TrimSpace(newlineRe.ReplaceAllString(
 		strings.Replace(ctx.buf.String(), "\n ", "\n", -1), "\n\n"),
@@ -597,29 +603,38 @@ func (ctx *textifyTraverseContext) addGeminiCitation(url string, display string)
 
 }
 
+func (ctx *textifyTraverseContext) forceFlushGeminiCitations() {
+	// this method writes to the buffer directly instead of using `emit`, b/c we do not want to split long links
+	ctx.buf.WriteString("\n")
+
+	//ctx.buf.WriteString("flushedtoindex: ")
+	//ctx.buf.WriteString(formatGeminiCitation(ctx.flushedToIndex))
+	ctx.buf.WriteByte('\n')
+
+	for i, link := range ctx.linkArray {
+	//	ctx.buf.WriteString(formatGeminiCitation(i))
+
+		if i > ctx.flushedToIndex {
+			ctx.buf.WriteString("=> ")
+			ctx.buf.WriteString(link.url)
+			ctx.buf.WriteByte(' ')
+			ctx.buf.WriteString(formatGeminiCitation(link.index))
+			ctx.buf.WriteByte(' ')
+			ctx.buf.WriteString(link.display)
+			ctx.buf.WriteByte('\n')
+		}
+	}
+
+	ctx.buf.WriteByte('\n')
+
+	ctx.ResetCitationCounters()
+
+}
 func (ctx *textifyTraverseContext) emitGeminiCitations() {
 
-	if len(ctx.linkArray) > ctx.flushedToIndex + 1 {
+	if len(ctx.linkArray) > ctx.flushedToIndex  {
 		//there are unflushed links
-
-		// this method writes to the buffer directly instead of using `emit`, b/c we do not want to split long links
-		ctx.buf.WriteString("\n")
-
-
-		for i, link := range ctx.linkArray {
-
-			if i > ctx.flushedToIndex {
-				ctx.buf.WriteString("=> ")
-				ctx.buf.WriteString(link.url)
-				ctx.buf.WriteByte(' ')
-				ctx.buf.WriteString(formatGeminiCitation(link.index))
-				ctx.buf.WriteByte(' ')
-				ctx.buf.WriteString(link.display)
-				ctx.buf.WriteByte('\n')
-			}
-		}
-
-		ctx.buf.WriteByte('\n')
+		ctx.forceFlushGeminiCitations()
 	}
 }
 
