@@ -20,6 +20,7 @@ type Options struct {
 	PrettyTablesOptions *PrettyTablesOptions // Configures pretty ASCII rendering for table elements.
 	OmitLinks           bool                 // Turns on omitting links
 	CitationStart       int                  //Start Citations from this number (default 1)
+	CitationMarkers		bool				//use footnote style citation markers
 	LinkEmitFrequency   int                  //emit gathered links after approximately every n paras (otherwise when new heading, or blockquote)
 }
 
@@ -30,6 +31,7 @@ func NewOptions() *Options {
 		PrettyTablesOptions: NewPrettyTablesOptions(),
 		OmitLinks:           false,
 		CitationStart:       1,
+		CitationMarkers: 	 true,
 		LinkEmitFrequency:   2,
 	}
 }
@@ -287,6 +289,25 @@ func (ctx *textifyTraverseContext) handleElement(node *html.Node) error {
 		}
 		str := subCtx.buf.String()
 		return ctx.emit("*" + str + "*")
+
+	case atom.Img:
+		//output images with a link to the image
+		hrefLink := ""
+		altText := ""
+		if altText := getAttrVal(node, "alt"); altText != "" {
+			if err := ctx.emit("[image: " + altText + "]"); err != nil {
+				return err
+			}
+		} else {
+			altText = "[image]"
+		}
+		if attrVal := getAttrVal(node, "src"); attrVal != "" {
+			attrVal = ctx.normalizeHrefLink(attrVal)
+			if !ctx.options.OmitLinks && attrVal != "" && altText != attrVal {
+				hrefLink = ctx.addGeminiCitation(attrVal, altText)
+			}
+		}
+		return ctx.emit(hrefLink)
 
 	case atom.A:
 		linkText := ""
@@ -581,8 +602,13 @@ func (ctx *textifyTraverseContext) normalizeHrefLink(link string) string {
 	return link
 }
 
-func formatGeminiCitation(idx int) string {
-	return fmt.Sprintf("[%d]", idx)
+func formatGeminiCitation(idx int, ctx *textifyTraverseContext) string {
+	if ctx.options.CitationMarkers {
+		return fmt.Sprintf("[%d]", idx)
+	} else {
+		return ""
+	}
+
 }
 
 func (ctx *textifyTraverseContext) addGeminiCitation(url string, display string) string {
@@ -598,13 +624,13 @@ func (ctx *textifyTraverseContext) addGeminiCitation(url string, display string)
 			url:     url,
 		}
 		ctx.linkArray = append(ctx.linkArray, citation)
-		return formatGeminiCitation(citation.index)
+		return formatGeminiCitation(citation.index, ctx)
 	}
 
 }
 
 func (ctx *textifyTraverseContext) forceFlushGeminiCitations() {
-	// this method writes to the buffer directly instead of using `emit`, b/c we do not want to split long links
+		// this method writes to the buffer directly instead of using `emit`, b/c we do not want to split long links
 	ctx.buf.WriteString("\n")
 
 	//ctx.buf.WriteString("flushedtoindex: ")
@@ -618,7 +644,7 @@ func (ctx *textifyTraverseContext) forceFlushGeminiCitations() {
 			ctx.buf.WriteString("=> ")
 			ctx.buf.WriteString(link.url)
 			ctx.buf.WriteByte(' ')
-			ctx.buf.WriteString(formatGeminiCitation(link.index))
+			ctx.buf.WriteString(formatGeminiCitation(link.index, ctx))
 			ctx.buf.WriteByte(' ')
 			ctx.buf.WriteString(link.display)
 			ctx.buf.WriteByte('\n')
