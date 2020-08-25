@@ -294,7 +294,7 @@ func (ctx *textifyTraverseContext) handleElement(node *html.Node) error {
 		//output images with a link to the image
 		hrefLink := ""
 		altText := ""
-		if altText := getAttrVal(node, "alt"); altText != "" {
+		if altText = getAttrVal(node, "alt"); altText != "" {
 			if err := ctx.emit("[image: " + altText + "]"); err != nil {
 				return err
 			}
