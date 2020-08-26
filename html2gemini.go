@@ -82,11 +82,11 @@ func NewPrettyTablesOptions() *PrettyTablesOptions {
 // emit frequency
 func (ctx *textifyTraverseContext) CheckFlushCitations() {
 
-//	if ctx.emitParaCount > ctx.options.LinkEmitFrequency &&  ctx.citationCount > 0 {
-	if ctx.emitParaCount > ctx.options.LinkEmitFrequency && len(ctx.linkArray) > (ctx.flushedToIndex + 1) {
+//	if linkAccumulator.emitParaCount > ctx.options.LinkEmitFrequency &&  ctx.citationCount > 0 {
+	if linkAccumulator.emitParaCount > ctx.options.LinkEmitFrequency && len(linkAccumulator.linkArray) > (linkAccumulator.flushedToIndex + 1) {
 		ctx.FlushCitations()
 	} else {
-		ctx.emitParaCount += 1
+		linkAccumulator.emitParaCount += 1
 	}
 }
 
@@ -95,8 +95,8 @@ func (ctx *textifyTraverseContext) FlushCitations() {
 }
 
 func (ctx *textifyTraverseContext) ResetCitationCounters() {
-	ctx.flushedToIndex = len(ctx.linkArray) - 1
-	ctx.emitParaCount = 0
+	linkAccumulator.flushedToIndex = len(linkAccumulator.linkArray) - 1
+	linkAccumulator.emitParaCount = 0
 }
 
 // FromHTMLNode renders text output from a pre-parsed HTML document.
@@ -115,7 +115,6 @@ func FromHTMLNode(doc *html.Node, o ...Options) (string, error) {
 	ctx := textifyTraverseContext{
 		buf:             bytes.Buffer{},
 		options:         options,
-		flushedToIndex: -1,
 	}
 	if err := ctx.traverse(doc); err != nil {
 		return "", err
@@ -157,6 +156,7 @@ func FromString(input string, options ...Options) (string, error) {
 var (
 	spacingRe = regexp.MustCompile(`[ \r\n\t]+`)
 	newlineRe = regexp.MustCompile(`\n\n+`)
+	linkAccumulator = newLinkAccumulator()
 )
 
 // traverseTableCtx holds text-related context.
@@ -171,13 +171,20 @@ type textifyTraverseContext struct {
 	blockquoteLevel int
 	lineLength      int
 	isPre           bool
-
-	emitParaCount   int
-	linkArray 		[]citationLink
-	flushedToIndex	int
-
 }
 
+type linkAccumulatorType struct {
+	emitParaCount   int
+	linkArray 		[]citationLink
+	flushedToIndex	int	
+	tableNestLevel	int
+}
+
+func newLinkAccumulator() *linkAccumulatorType {
+	return &linkAccumulatorType{
+		flushedToIndex: -1,
+	}
+}
 type citationLink struct {
 	index 	int
 	url		string
@@ -342,11 +349,17 @@ func (ctx *textifyTraverseContext) handleElement(node *html.Node) error {
 		return ctx.paragraphHandler(node)
 
 	case atom.Table, atom.Tfoot, atom.Th, atom.Tr, atom.Td:
+
+
 		if ctx.options.PrettyTables {
 			return ctx.handleTableElement(node)
 		} else if node.DataAtom == atom.Table {
+			linkAccumulator.tableNestLevel++
 			return ctx.paragraphHandler(node)
+			linkAccumulator.tableNestLevel--
 		}
+
+
 		return ctx.traverseChildren(node)
 
 	case atom.Pre:
@@ -390,6 +403,8 @@ func (ctx *textifyTraverseContext) handleTableElement(node *html.Node) error {
 			return err
 		}
 
+		linkAccumulator.tableNestLevel++
+
 		// Re-intialize all table context.
 		ctx.tableCtx.init()
 
@@ -428,6 +443,8 @@ func (ctx *textifyTraverseContext) handleTableElement(node *html.Node) error {
 		if err := ctx.emit(buf.String()); err != nil {
 			return err
 		}
+
+		linkAccumulator.tableNestLevel--
 
 		return ctx.emit("```\n\n")
 
@@ -619,11 +636,11 @@ func (ctx *textifyTraverseContext) addGeminiCitation(url string, display string)
 		return ""
 	} else {
 		citation := citationLink{
-			index:   len(ctx.linkArray) + ctx.options.CitationStart,
+			index:   len(linkAccumulator.linkArray) + ctx.options.CitationStart,
 			display: display,
 			url:     url,
 		}
-		ctx.linkArray = append(ctx.linkArray, citation)
+		linkAccumulator.linkArray = append(linkAccumulator.linkArray, citation)
 		return formatGeminiCitation(citation.index, ctx)
 	}
 
@@ -631,16 +648,22 @@ func (ctx *textifyTraverseContext) addGeminiCitation(url string, display string)
 
 func (ctx *textifyTraverseContext) forceFlushGeminiCitations() {
 		// this method writes to the buffer directly instead of using `emit`, b/c we do not want to split long links
+
+	if linkAccumulator.tableNestLevel > 0 {
+		//dont emit citation list inside a table
+		return
+	}
+	
 	ctx.buf.WriteString("\n")
 
 	//ctx.buf.WriteString("flushedtoindex: ")
-	//ctx.buf.WriteString(formatGeminiCitation(ctx.flushedToIndex))
+	//ctx.buf.WriteString(formatGeminiCitation(linkAccumulator.flushedToIndex))
 	ctx.buf.WriteByte('\n')
 
-	for i, link := range ctx.linkArray {
+	for i, link := range linkAccumulator.linkArray {
 	//	ctx.buf.WriteString(formatGeminiCitation(i))
 
-		if i > ctx.flushedToIndex {
+		if i > linkAccumulator.flushedToIndex {
 			ctx.buf.WriteString("=> ")
 			ctx.buf.WriteString(link.url)
 			ctx.buf.WriteByte(' ')
@@ -658,7 +681,7 @@ func (ctx *textifyTraverseContext) forceFlushGeminiCitations() {
 }
 func (ctx *textifyTraverseContext) emitGeminiCitations() {
 
-	if len(ctx.linkArray) > ctx.flushedToIndex  {
+	if len(linkAccumulator.linkArray) > linkAccumulator.flushedToIndex  {
 		//there are unflushed links
 		ctx.forceFlushGeminiCitations()
 	}
