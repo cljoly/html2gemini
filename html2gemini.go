@@ -22,6 +22,7 @@ type Options struct {
 	CitationStart       int                  //Start Citations from this number (default 1)
 	CitationMarkers		bool				//use footnote style citation markers
 	LinkEmitFrequency   int                  //emit gathered links after approximately every n paras (otherwise when new heading, or blockquote)
+	NumberedLinks		bool				// number the links [1], [2] etc to match citation markers
 }
 
 //NewOptions creates Options with default settings
@@ -32,6 +33,7 @@ func NewOptions() *Options {
 		OmitLinks:           false,
 		CitationStart:       1,
 		CitationMarkers: 	 true,
+		NumberedLinks: 		true,
 		LinkEmitFrequency:   2,
 	}
 }
@@ -619,8 +621,8 @@ func (ctx *textifyTraverseContext) normalizeHrefLink(link string) string {
 	return link
 }
 
-func formatGeminiCitation(idx int, ctx *textifyTraverseContext) string {
-	if ctx.options.CitationMarkers {
+func formatGeminiCitation(idx int, showMarker bool) string {
+	if showMarker {
 		return fmt.Sprintf("[%d]", idx)
 	} else {
 		return ""
@@ -641,7 +643,7 @@ func (ctx *textifyTraverseContext) addGeminiCitation(url string, display string)
 			url:     url,
 		}
 		linkAccumulator.linkArray = append(linkAccumulator.linkArray, citation)
-		return formatGeminiCitation(citation.index, ctx)
+		return formatGeminiCitation(citation.index, ctx.options.CitationMarkers)
 	}
 
 }
@@ -667,7 +669,7 @@ func (ctx *textifyTraverseContext) forceFlushGeminiCitations() {
 			ctx.buf.WriteString("=> ")
 			ctx.buf.WriteString(link.url)
 			ctx.buf.WriteByte(' ')
-			ctx.buf.WriteString(formatGeminiCitation(link.index, ctx))
+			ctx.buf.WriteString(formatGeminiCitation(link.index, ctx.options.NumberedLinks))
 			ctx.buf.WriteByte(' ')
 			ctx.buf.WriteString(link.display)
 			ctx.buf.WriteByte('\n')
