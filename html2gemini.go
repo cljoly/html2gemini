@@ -24,6 +24,7 @@ type Options struct {
 	CitationMarkers		bool				//use footnote style citation markers
 	LinkEmitFrequency   int                  //emit gathered links after approximately every n paras (otherwise when new heading, or blockquote)
 	NumberedLinks		bool				// number the links [1], [2] etc to match citation markers
+	EmitImagesAsLinks 	bool				//emit referenced images as links e.g. <img src=href>
 }
 
 //NewOptions creates Options with default settings
@@ -36,6 +37,7 @@ func NewOptions() *Options {
 		CitationMarkers: 	 true,
 		NumberedLinks: 		true,
 		LinkEmitFrequency:   2,
+		EmitImagesAsLinks: true,
 	}
 }
 
@@ -311,17 +313,23 @@ func (ctx *textifyTraverseContext) handleElement(node *html.Node) error {
 		altText = strings.ReplaceAll(altText, "_", " ")
 		altText = strings.ReplaceAll(altText, "-", " ")
 		altText = strings.ReplaceAll(altText, "  ", " ")
-		if err := ctx.emit(altText); err != nil {
-			return err
+
+		if ctx.options.EmitImagesAsLinks{
+			if err := ctx.emit(altText); err != nil {
+				return err
+			}
+
+			if attrVal := getAttrVal(node, "src"); attrVal != "" {
+				attrVal = ctx.normalizeHrefLink(attrVal)
+				if !ctx.options.OmitLinks && attrVal != "" && altText != attrVal {
+					hrefLink = ctx.addGeminiCitation(attrVal, altText)
+				}
+			}
+			return ctx.emit(hrefLink)
+		} else {
+			return ctx.emit(altText)
 		}
 
-		if attrVal := getAttrVal(node, "src"); attrVal != "" {
-			attrVal = ctx.normalizeHrefLink(attrVal)
-			if !ctx.options.OmitLinks && attrVal != "" && altText != attrVal {
-				hrefLink = ctx.addGeminiCitation(attrVal, altText)
-			}
-		}
-		return ctx.emit(hrefLink)
 
 	case atom.A:
 		linkText := ""
