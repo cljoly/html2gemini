@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"unicode"
@@ -37,6 +38,8 @@ func NewOptions() *Options {
 		LinkEmitFrequency:   2,
 	}
 }
+
+
 
 // PrettyTablesOptions overrides tablewriter behaviors
 type PrettyTablesOptions struct {
@@ -290,26 +293,28 @@ func (ctx *textifyTraverseContext) handleElement(node *html.Node) error {
 
 		return ctx.emit("\n")
 
-	case atom.B, atom.Strong:
-		subCtx := textifyTraverseContext{}
-		subCtx.endsWithSpace = true
-		if err := subCtx.traverseChildren(node); err != nil {
-			return err
-		}
-		str := subCtx.buf.String()
-		return ctx.emit("*" + str + "*")
 
 	case atom.Img:
 		//output images with a link to the image
 		hrefLink := ""
 		altText := ""
 		if altText = getAttrVal(node, "alt"); altText != "" {
-			if err := ctx.emit("[image: " + altText + "]"); err != nil {
-				return err
-			}
+			altText = "[⚜ " + altText + "]"
 		} else {
-			altText = "[image]"
+			if src := getAttrVal(node, "src"); src != "" {
+				//try to ge the last element of the path
+				fileName := filepath.Base(src)
+				fileBase := strings.TrimSuffix(fileName, filepath.Ext(fileName))
+				altText = "[⚜ " + fileBase + "]"
+			}
 		}
+		altText = strings.ReplaceAll(altText, "_", " ")
+		altText = strings.ReplaceAll(altText, "-", " ")
+		altText = strings.ReplaceAll(altText, "  ", " ")
+		if err := ctx.emit(altText); err != nil {
+			return err
+		}
+
 		if attrVal := getAttrVal(node, "src"); attrVal != "" {
 			attrVal = ctx.normalizeHrefLink(attrVal)
 			if !ctx.options.OmitLinks && attrVal != "" && altText != attrVal {
@@ -325,16 +330,17 @@ func (ctx *textifyTraverseContext) handleElement(node *html.Node) error {
 			linkText = node.FirstChild.Data
 		}
 
-		// If image is the only child, take its alt text as the link text.
-		if img := node.FirstChild; img != nil && node.LastChild == img && img.DataAtom == atom.Img {
-			if altText := getAttrVal(img, "alt"); altText != "" {
-				if err := ctx.emit(altText); err != nil {
-					return err
-				}
-			}
-		} else if err := ctx.traverseChildren(node); err != nil {
+		if err := ctx.traverseChildren(node); err != nil {
 			return err
 		}
+
+		// If image is the only child, the image will have been shown as a link with its alt text etc
+		// so choose a simple marker for the link itself
+		if img := node.FirstChild; img != nil && node.LastChild == img && img.DataAtom == atom.Img {
+			linkText = "⮞"
+			ctx.emit(linkText)
+		}
+
 
 		hrefLink := ""
 		if attrVal := getAttrVal(node, "href"); attrVal != "" {
@@ -380,6 +386,7 @@ func (ctx *textifyTraverseContext) handleElement(node *html.Node) error {
 		return ctx.traverseChildren(node)
 	}
 }
+
 
 // paragraphHandler renders node children surrounded by double newlines.
 func (ctx *textifyTraverseContext) paragraphHandler(node *html.Node) error {
