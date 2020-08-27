@@ -25,6 +25,8 @@ type Options struct {
 	LinkEmitFrequency   int                  //emit gathered links after approximately every n paras (otherwise when new heading, or blockquote)
 	NumberedLinks		bool				// number the links [1], [2] etc to match citation markers
 	EmitImagesAsLinks 	bool				//emit referenced images as links e.g. <img src=href>
+    ImageMarkerPrefix   string              //prefix when emitting images
+    EmptyLinkPrefix     string              //prefix when emitting empty links (e.g. <a href=foo><img src=bar></a>
 }
 
 //NewOptions creates Options with default settings
@@ -38,6 +40,8 @@ func NewOptions() *Options {
 		NumberedLinks: 		true,
 		LinkEmitFrequency:   2,
 		EmitImagesAsLinks: true,
+        ImageMarkerPrefix: "‡",
+        EmptyLinkPrefix: ">>",
 	}
 }
 
@@ -301,15 +305,16 @@ func (ctx *textifyTraverseContext) handleElement(node *html.Node) error {
 		hrefLink := ""
 		altText := ""
 		if altText = getAttrVal(node, "alt"); altText != "" {
-			altText = "[⚜ " + altText + "]"
+			altText = altText
 		} else {
 			if src := getAttrVal(node, "src"); src != "" {
 				//try to ge the last element of the path
 				fileName := filepath.Base(src)
 				fileBase := strings.TrimSuffix(fileName, filepath.Ext(fileName))
-				altText = "[⚜ " + fileBase + "]"
+				altText = fileBase
 			}
 		}
+        altText = "[" + ctx.options.ImageMarkerPrefix + " " + altText + "]"
 		altText = strings.ReplaceAll(altText, "_", " ")
 		altText = strings.ReplaceAll(altText, "-", " ")
 		altText = strings.ReplaceAll(altText, "  ", " ")
@@ -345,8 +350,8 @@ func (ctx *textifyTraverseContext) handleElement(node *html.Node) error {
 		// If image is the only child, the image will have been shown as a link with its alt text etc
 		// so choose a simple marker for the link itself
 		if img := node.FirstChild; img != nil && node.LastChild == img && img.DataAtom == atom.Img {
-			linkText = "⮞"
-			ctx.emit(linkText)
+			linkText = ctx.options.EmptyLinkPrefix
+			ctx.emit(" " + linkText)
 		}
 
 
