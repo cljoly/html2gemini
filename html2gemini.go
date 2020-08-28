@@ -375,11 +375,15 @@ func (ctx *textifyTraverseContext) handleElement(node *html.Node) error {
 		if ctx.options.PrettyTables {
 			return ctx.handleTableElement(node)
 		} else if node.DataAtom == atom.Table {
-			linkAccumulator.tableNestLevel++
-			return ctx.paragraphHandler(node)
-			linkAccumulator.tableNestLevel--
+			//just treat tables as a type of paragraph
+            ctx.emit("\n\n⊞ table ⊞\n\n")
+            return ctx.paragraphHandler(node)
 		}
 
+        if node.DataAtom == atom.Tr {
+            //start a new line
+            ctx.emit("\n")
+        }
 
 		return ctx.traverseChildren(node)
 
@@ -421,9 +425,16 @@ func (ctx *textifyTraverseContext) handleTableElement(node *html.Node) error {
 
 	switch node.DataAtom {
 	case atom.Table:
-		if err := ctx.emit("\n\n```\n"); err != nil {
-			return err
-		}
+        
+		if linkAccumulator.tableNestLevel == 0 {
+            if err := ctx.emit("\n\n```\n"); err != nil {
+                return err
+            }
+        } else {
+            if err := ctx.emit("\n\n"); err != nil {
+                return err
+            }
+        }
 
 		linkAccumulator.tableNestLevel++
 
@@ -467,8 +478,13 @@ func (ctx *textifyTraverseContext) handleTableElement(node *html.Node) error {
 		}
 
 		linkAccumulator.tableNestLevel--
-
-		return ctx.emit("```\n\n")
+        
+        if linkAccumulator.tableNestLevel == 0 {
+            return ctx.emit("```\n\n")
+        } else {
+            return ctx.emit("\n\n")
+        }
+        
 
 	case atom.Tfoot:
 		ctx.tableCtx.isInFooter = true
