@@ -395,11 +395,11 @@ func (ctx *TextifyTraverseContext) handleElement(node *html.Node) error {
 		return ctx.traverseChildren(node)
 
 	case atom.Pre:
-		ctx.emit("```\n")
+		ctx.emit("\n\n```\n")
 		ctx.isPre = true
 		err := ctx.traverseChildren(node)
 		ctx.isPre = false
-		ctx.emit("\n```")
+		ctx.emit("\n```\n\n")
 		return err
 
 	case atom.Style, atom.Script, atom.Head:
