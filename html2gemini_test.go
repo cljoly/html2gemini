@@ -49,7 +49,8 @@ func TestParseUTF8(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		text, err := FromReader(bytes.NewReader(bs))
+		ctx := NewTraverseContext(Options{})
+		text, err := FromReader(bytes.NewReader(bs), *ctx)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -886,7 +887,12 @@ func wantString(input string, output string, options ...Options) (string, error)
 }
 
 func match(input string, matcher StringMatcher, options ...Options) (string, error) {
-	text, err := FromString(input, options...)
+	var ctxOptions Options
+	if len(options) > 0 {
+		ctxOptions = options[0]
+	}
+	ctx := NewTraverseContext(ctxOptions)
+	text, err := FromString(input, *ctx)
 	if err != nil {
 		return "", err
 	}
@@ -978,7 +984,8 @@ Preformatted content    with    spaces
 	</body>
 </html>`
 
-	text, err := FromString(inputHTML, Options{PrettyTables: true, LinkEmitFrequency: 100})
+	ctx := NewTraverseContext(Options{PrettyTables: true, LinkEmitFrequency: 100})
+	text, err := FromString(inputHTML, *ctx)
 	if err != nil {
 		panic(err)
 	}
