@@ -22,7 +22,7 @@ go get github.com/LukeEmmet/html2gemini
 
 ## Example usage
 
-See https://github.com/LukeEmmet/html2gmi which is a practical command line application that uses this library.
+See https://github.com/LukeEmmet/html2gmi which is a practical command line application that uses this library. Also see https://github.com/LukeEmmet/duckling-proxy which is an HTTP via Gemini proxy server so you can browse the web from any Gemini client that supports scheme-specific proxies.
 
 To simplify the html passed to this library, you could simplify or sanitise it first, for example using https://github.com/philipjkim/goreadability
 
