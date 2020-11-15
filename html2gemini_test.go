@@ -435,6 +435,33 @@ func TestOmitLinks(t *testing.T) {
 	}
 }
 
+func TestLinkEscaping(t *testing.T) {
+	testCases := []struct {
+		input  string
+		output string
+	}{
+		{
+			`<a href="foo">display</a>`,
+			"display\n\n=> foo  display",		//minor bug with extra space at present
+		},
+		{
+			`<a href="foo spaced">display</a>`,
+			"display\n\n=> foo%20spaced  display",		//minor bug with extra space at present
+		},
+		{
+			`<a href="foo?bar+baz">display</a>`,
+			"display\n\n=> foo?bar+baz  display",		//minor bug with extra space at present
+		},
+	}
+	for _, testCase := range testCases {
+		if msg, err := wantString(testCase.input, testCase.output); err != nil {
+			t.Error(err)
+		} else if len(msg) > 0 {
+			t.Log(msg)
+		}
+	}
+}
+
 func TestCitationStyleLinks(t *testing.T) {
 	testCases := []struct {
 		input  string

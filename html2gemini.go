@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"strings"
 	"unicode"
+	neturl "net/url"
 
 	"github.com/olekukonko/tablewriter"
 	"github.com/ssor/bom"
@@ -684,6 +685,16 @@ func (ctx *TextifyTraverseContext) addGeminiCitation(url string, display string)
 			index:   len(ctx.linkAccumulator.linkArray) + ctx.options.CitationStart,
 			display: display,
 			url:     url,
+		}
+
+		//spaces would mess up the gemini link, so check for them
+		if strings.Contains(citation.url, " ") {
+			//escape the url if it has spaces in, sticking with the current url if there is an error
+			//we unescape, then rescape it
+			saneUrl, error := neturl.PathUnescape(citation.url)
+			if error == nil {
+				citation.url = neturl.PathEscape(saneUrl)
+			}
 		}
 		ctx.linkAccumulator.linkArray = append(ctx.linkAccumulator.linkArray, citation)
 		return formatGeminiCitation(citation.index, ctx.options.CitationMarkers)
