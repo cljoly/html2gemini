@@ -3,17 +3,15 @@ package html2gemini
 import (
 	"bytes"
 	"fmt"
+	"github.com/olekukonko/tablewriter"
+	"github.com/ssor/bom"
+	"golang.org/x/net/html"
+	"golang.org/x/net/html/atom"
 	"io"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"unicode"
-	neturl "net/url"
-
-	"github.com/olekukonko/tablewriter"
-	"github.com/ssor/bom"
-	"golang.org/x/net/html"
-	"golang.org/x/net/html/atom"
 )
 
 // Options provide toggles and overrides to control specific rendering behaviors.
@@ -689,12 +687,9 @@ func (ctx *TextifyTraverseContext) addGeminiCitation(url string, display string)
 
 		//spaces would mess up the gemini link, so check for them
 		if strings.Contains(citation.url, " ") {
-			//escape the url if it has spaces in, sticking with the current url if there is an error
-			//we unescape, then rescape it
-			saneUrl, error := neturl.PathUnescape(citation.url)
-			if error == nil {
-				citation.url = neturl.PathEscape(saneUrl)
-			}
+			//escape the spaces
+			citation.url = strings.ReplaceAll(citation.url, " ", "%20")
+
 		}
 		ctx.linkAccumulator.linkArray = append(ctx.linkAccumulator.linkArray, citation)
 		return formatGeminiCitation(citation.index, ctx.options.CitationMarkers)
