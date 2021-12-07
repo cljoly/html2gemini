@@ -3,15 +3,17 @@ package html2gemini
 import (
 	"bytes"
 	"fmt"
-	"github.com/olekukonko/tablewriter"
-	"github.com/ssor/bom"
-	"golang.org/x/net/html"
-	"golang.org/x/net/html/atom"
 	"io"
+	neturl "net/url"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"unicode"
+
+	"github.com/olekukonko/tablewriter"
+	"github.com/ssor/bom"
+	"golang.org/x/net/html"
+	"golang.org/x/net/html/atom"
 )
 
 // Options provide toggles and overrides to control specific rendering behaviors.
@@ -20,12 +22,12 @@ type Options struct {
 	PrettyTablesOptions *PrettyTablesOptions // Configures pretty ASCII rendering for table elements.
 	OmitLinks           bool                 // Turns on omitting links
 	CitationStart       int                  //Start Citations from this number (default 1)
-	CitationMarkers		bool				//use footnote style citation markers
+	CitationMarkers     bool                 //use footnote style citation markers
 	LinkEmitFrequency   int                  //emit gathered links after approximately every n paras (otherwise when new heading, or blockquote)
-	NumberedLinks		bool				// number the links [1], [2] etc to match citation markers
-	EmitImagesAsLinks 	bool				//emit referenced images as links e.g. <img src=href>
-    ImageMarkerPrefix   string              //prefix when emitting images
-    EmptyLinkPrefix     string              //prefix when emitting empty links (e.g. <a href=foo><img src=bar></a>
+	NumberedLinks       bool                 // number the links [1], [2] etc to match citation markers
+	EmitImagesAsLinks   bool                 //emit referenced images as links e.g. <img src=href>
+	ImageMarkerPrefix   string               //prefix when emitting images
+	EmptyLinkPrefix     string               //prefix when emitting empty links (e.g. <a href=foo><img src=bar></a>
 }
 
 //NewOptions creates Options with default settings
@@ -35,16 +37,14 @@ func NewOptions() *Options {
 		PrettyTablesOptions: NewPrettyTablesOptions(),
 		OmitLinks:           false,
 		CitationStart:       1,
-		CitationMarkers: 	 true,
-		NumberedLinks: 		true,
+		CitationMarkers:     true,
+		NumberedLinks:       true,
 		LinkEmitFrequency:   2,
-		EmitImagesAsLinks: true,
-        ImageMarkerPrefix: "‡",
-        EmptyLinkPrefix: ">>",
+		EmitImagesAsLinks:   true,
+		ImageMarkerPrefix:   "‡",
+		EmptyLinkPrefix:     ">>",
 	}
 }
-
-
 
 // PrettyTablesOptions overrides tablewriter behaviors
 type PrettyTablesOptions struct {
@@ -92,8 +92,8 @@ func NewPrettyTablesOptions() *PrettyTablesOptions {
 // emit frequency
 func (ctx *TextifyTraverseContext) CheckFlushCitations() {
 
-//	if ctx.linkAccumulator.emitParaCount > ctx.options.LinkEmitFrequency &&  ctx.citationCount > 0 {
-	if ctx.linkAccumulator.emitParaCount > ctx.options.LinkEmitFrequency && len(ctx.linkAccumulator.linkArray) > (ctx.linkAccumulator.flushedToIndex + 1) {
+	//	if ctx.linkAccumulator.emitParaCount > ctx.options.LinkEmitFrequency &&  ctx.citationCount > 0 {
+	if ctx.linkAccumulator.emitParaCount > ctx.options.LinkEmitFrequency && len(ctx.linkAccumulator.linkArray) > (ctx.linkAccumulator.flushedToIndex+1) {
 		ctx.FlushCitations()
 	} else {
 		ctx.linkAccumulator.emitParaCount += 1
@@ -136,8 +136,6 @@ func FromReader(reader io.Reader, ctx TextifyTraverseContext) (string, error) {
 		return "", err
 	}
 
-
-	
 	return FromHTMLNode(doc, ctx)
 }
 
@@ -154,7 +152,6 @@ func FromString(input string, ctx TextifyTraverseContext) (string, error) {
 var (
 	spacingRe = regexp.MustCompile(`[ \r\n\t]+`)
 	newlineRe = regexp.MustCompile(`\n\n+`)
-	
 )
 
 // traverseTableCtx holds text-related context.
@@ -173,10 +170,10 @@ type TextifyTraverseContext struct {
 }
 
 type linkAccumulatorType struct {
-	emitParaCount   int
-	linkArray 		[]citationLink
-	flushedToIndex	int	
-	tableNestLevel	int
+	emitParaCount  int
+	linkArray      []citationLink
+	flushedToIndex int
+	tableNestLevel int
 }
 
 func newlinkAccumulator() *linkAccumulatorType {
@@ -184,9 +181,10 @@ func newlinkAccumulator() *linkAccumulatorType {
 		flushedToIndex: -1,
 	}
 }
+
 type citationLink struct {
-	index 	int
-	url		string
+	index   int
+	url     string
 	display string
 }
 
@@ -213,12 +211,11 @@ func NewTraverseContext(options Options) *TextifyTraverseContext {
 	//types.
 
 	//start links at 1, not 0 if not specified
-	options.CitationStart = 1	//otherwise uses zero value which is 0
+	options.CitationStart = 1 //otherwise uses zero value which is 0
 
-
-	var ctx = TextifyTraverseContext {
-		buf:             bytes.Buffer{},
-		options:         options,
+	var ctx = TextifyTraverseContext{
+		buf:     bytes.Buffer{},
+		options: options,
 	}
 
 	ctx.linkAccumulator = *newlinkAccumulator()
@@ -279,6 +276,7 @@ func (ctx *TextifyTraverseContext) handleElement(node *html.Node) error {
 		return ctx.emit("\n\n")
 
 	case atom.Div:
+
 		if ctx.lineLength > 0 {
 			if err := ctx.emit("\n"); err != nil {
 				return err
@@ -295,6 +293,19 @@ func (ctx *TextifyTraverseContext) handleElement(node *html.Node) error {
 		return err
 
 	case atom.Li:
+
+		//a test context to examine the list element to see if it just has a single link
+		//in which case we'll output a link line
+		testCtx := TextifyTraverseContext{}
+		if err := testCtx.traverseChildren(node); err != nil {
+			return err
+		}
+
+		//if content contains just one link, output a link instead of a bullet
+		if len(testCtx.linkAccumulator.linkArray) == 1 {
+			return ctx.emit("=> " + testCtx.linkAccumulator.linkArray[0].url + " " + testCtx.buf.String() + "\n")
+		}
+
 		if err := ctx.emit("* "); err != nil {
 			return err
 		}
@@ -304,7 +315,6 @@ func (ctx *TextifyTraverseContext) handleElement(node *html.Node) error {
 		}
 
 		return ctx.emit("\n")
-
 
 	case atom.Img:
 		//output images with a link to the image
@@ -320,12 +330,12 @@ func (ctx *TextifyTraverseContext) handleElement(node *html.Node) error {
 				altText = fileBase
 			}
 		}
-        altText = "[" + ctx.options.ImageMarkerPrefix + " " + altText + "]"
+		altText = "[" + ctx.options.ImageMarkerPrefix + " " + altText + "]"
 		altText = strings.ReplaceAll(altText, "_", " ")
 		altText = strings.ReplaceAll(altText, "-", " ")
 		altText = strings.ReplaceAll(altText, "  ", " ")
 
-		if ctx.options.EmitImagesAsLinks{
+		if ctx.options.EmitImagesAsLinks {
 			if err := ctx.emit(altText); err != nil {
 				return err
 			}
@@ -340,7 +350,6 @@ func (ctx *TextifyTraverseContext) handleElement(node *html.Node) error {
 		} else {
 			return ctx.emit(altText)
 		}
-
 
 	case atom.A:
 		linkText := ""
@@ -360,7 +369,6 @@ func (ctx *TextifyTraverseContext) handleElement(node *html.Node) error {
 			ctx.emit(" " + linkText)
 		}
 
-
 		hrefLink := ""
 		if attrVal := getAttrVal(node, "href"); attrVal != "" {
 			attrVal = ctx.normalizeHrefLink(attrVal)
@@ -377,19 +385,18 @@ func (ctx *TextifyTraverseContext) handleElement(node *html.Node) error {
 
 	case atom.Table, atom.Tfoot, atom.Th, atom.Tr, atom.Td:
 
-
 		if ctx.options.PrettyTables {
 			return ctx.handleTableElement(node)
 		} else if node.DataAtom == atom.Table {
 			//just treat tables as a type of paragraph
-            ctx.emit("\n\n⊞ table ⊞\n\n")
-            return ctx.paragraphHandler(node)
+			ctx.emit("\n\n⊞ table ⊞\n\n")
+			return ctx.paragraphHandler(node)
 		}
 
-        if node.DataAtom == atom.Tr {
-            //start a new line
-            ctx.emit("\n")
-        }
+		if node.DataAtom == atom.Tr {
+			//start a new line
+			ctx.emit("\n")
+		}
 
 		return ctx.traverseChildren(node)
 
@@ -409,7 +416,6 @@ func (ctx *TextifyTraverseContext) handleElement(node *html.Node) error {
 		return ctx.traverseChildren(node)
 	}
 }
-
 
 // paragraphHandler renders node children surrounded by double newlines.
 func (ctx *TextifyTraverseContext) paragraphHandler(node *html.Node) error {
@@ -431,16 +437,16 @@ func (ctx *TextifyTraverseContext) handleTableElement(node *html.Node) error {
 
 	switch node.DataAtom {
 	case atom.Table:
-        
+
 		if ctx.linkAccumulator.tableNestLevel == 0 {
-            if err := ctx.emit("\n\n```\n"); err != nil {
-                return err
-            }
-        } else {
-            if err := ctx.emit("\n\n"); err != nil {
-                return err
-            }
-        }
+			if err := ctx.emit("\n\n```\n"); err != nil {
+				return err
+			}
+		} else {
+			if err := ctx.emit("\n\n"); err != nil {
+				return err
+			}
+		}
 
 		ctx.linkAccumulator.tableNestLevel++
 
@@ -484,13 +490,12 @@ func (ctx *TextifyTraverseContext) handleTableElement(node *html.Node) error {
 		}
 
 		ctx.linkAccumulator.tableNestLevel--
-        
-        if ctx.linkAccumulator.tableNestLevel == 0 {
-            return ctx.emit("```\n\n")
-        } else {
-            return ctx.emit("\n\n")
-        }
-        
+
+		if ctx.linkAccumulator.tableNestLevel == 0 {
+			return ctx.emit("```\n\n")
+		} else {
+			return ctx.emit("\n\n")
+		}
 
 	case atom.Tfoot:
 		ctx.tableCtx.isInFooter = true
@@ -674,7 +679,6 @@ func formatGeminiCitation(idx int, showMarker bool) string {
 
 func (ctx *TextifyTraverseContext) addGeminiCitation(url string, display string) string {
 
-
 	if url[0:1] == "#" {
 		//dont emit bookmarks to the same page (url starts #)
 		return ""
@@ -698,13 +702,13 @@ func (ctx *TextifyTraverseContext) addGeminiCitation(url string, display string)
 }
 
 func (ctx *TextifyTraverseContext) forceFlushGeminiCitations() {
-		// this method writes to the buffer directly instead of using `emit`, b/c we do not want to split long links
+	// this method writes to the buffer directly instead of using `emit`, b/c we do not want to split long links
 
 	if ctx.linkAccumulator.tableNestLevel > 0 {
 		//dont emit citation list inside a table
 		return
 	}
-	
+
 	ctx.buf.WriteString("\n")
 
 	//ctx.buf.WriteString("flushedtoindex: ")
@@ -712,7 +716,7 @@ func (ctx *TextifyTraverseContext) forceFlushGeminiCitations() {
 	ctx.buf.WriteByte('\n')
 
 	for i, link := range ctx.linkAccumulator.linkArray {
-	//	ctx.buf.WriteString(formatGeminiCitation(i))
+		//	ctx.buf.WriteString(formatGeminiCitation(i))
 
 		if i > ctx.linkAccumulator.flushedToIndex {
 			ctx.buf.WriteString("=> ")
@@ -732,7 +736,7 @@ func (ctx *TextifyTraverseContext) forceFlushGeminiCitations() {
 }
 func (ctx *TextifyTraverseContext) emitGeminiCitations() {
 
-	if len(ctx.linkAccumulator.linkArray) > ctx.linkAccumulator.flushedToIndex  {
+	if len(ctx.linkAccumulator.linkArray) > ctx.linkAccumulator.flushedToIndex {
 		//there are unflushed links
 		ctx.forceFlushGeminiCitations()
 	}
