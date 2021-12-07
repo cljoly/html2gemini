@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	neturl "net/url"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -302,7 +301,8 @@ func (ctx *TextifyTraverseContext) handleElement(node *html.Node) error {
 		}
 
 		//if content contains just one link, output a link instead of a bullet
-		if len(testCtx.linkAccumulator.linkArray) == 1 {
+        const maxSingletonLinkLength = 50
+		if (len(testCtx.buf.String()) < maxSingletonLinkLength) && (len(testCtx.linkAccumulator.linkArray) == 1) {
 			return ctx.emit("=> " + testCtx.linkAccumulator.linkArray[0].url + " " + testCtx.buf.String() + "\n")
 		}
 
