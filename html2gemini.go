@@ -17,31 +17,33 @@ import (
 
 // Options provide toggles and overrides to control specific rendering behaviors.
 type Options struct {
-	PrettyTables        bool                 // Turns on pretty ASCII rendering for table elements.
-	PrettyTablesOptions *PrettyTablesOptions // Configures pretty ASCII rendering for table elements.
-	OmitLinks           bool                 // Turns on omitting links
-	CitationStart       int                  //Start Citations from this number (default 1)
-	CitationMarkers     bool                 //use footnote style citation markers
-	LinkEmitFrequency   int                  //emit gathered links after approximately every n paras (otherwise when new heading, or blockquote)
-	NumberedLinks       bool                 // number the links [1], [2] etc to match citation markers
-	EmitImagesAsLinks   bool                 //emit referenced images as links e.g. <img src=href>
-	ImageMarkerPrefix   string               //prefix when emitting images
-	EmptyLinkPrefix     string               //prefix when emitting empty links (e.g. <a href=foo><img src=bar></a>
+	PrettyTables                bool                 // Turns on pretty ASCII rendering for table elements.
+	PrettyTablesOptions         *PrettyTablesOptions // Configures pretty ASCII rendering for table elements.
+	OmitLinks                   bool                 // Turns on omitting links
+	CitationStart               int                  //Start Citations from this number (default 1)
+	CitationMarkers             bool                 //use footnote style citation markers
+	LinkEmitFrequency           int                  //emit gathered links after approximately every n paras (otherwise when new heading, or blockquote)
+	NumberedLinks               bool                 // number the links [1], [2] etc to match citation markers
+	EmitImagesAsLinks           bool                 //emit referenced images as links e.g. <img src=href>
+	ImageMarkerPrefix           string               //prefix when emitting images
+	EmptyLinkPrefix             string               //prefix when emitting empty links (e.g. <a href=foo><img src=bar></a>
+	ListItemToLinkWordThreshold int                  //max number of words in a list item having a single link that is converted to a plain gemini link
 }
 
 //NewOptions creates Options with default settings
 func NewOptions() *Options {
 	return &Options{
-		PrettyTables:        false,
-		PrettyTablesOptions: NewPrettyTablesOptions(),
-		OmitLinks:           false,
-		CitationStart:       1,
-		CitationMarkers:     true,
-		NumberedLinks:       true,
-		LinkEmitFrequency:   2,
-		EmitImagesAsLinks:   true,
-		ImageMarkerPrefix:   "‡",
-		EmptyLinkPrefix:     ">>",
+		PrettyTables:                false,
+		PrettyTablesOptions:         NewPrettyTablesOptions(),
+		OmitLinks:                   false,
+		CitationStart:               1,
+		CitationMarkers:             true,
+		NumberedLinks:               true,
+		LinkEmitFrequency:           2,
+		EmitImagesAsLinks:           true,
+		ImageMarkerPrefix:           "‡",
+		EmptyLinkPrefix:             ">>",
+		ListItemToLinkWordThreshold: 30,
 	}
 }
 
@@ -120,6 +122,14 @@ func FromHTMLNode(doc *html.Node, ctx TextifyTraverseContext) (string, error) {
 	text := strings.TrimSpace(newlineRe.ReplaceAllString(
 		strings.Replace(ctx.buf.String(), "\n ", "\n", -1), "\n\n"),
 	)
+
+	//somewhat hacky tidying up of start and end of blockquotes
+	startQuote := regexp.MustCompile(`\n *\n+> \n`)
+	text = startQuote.ReplaceAllString(text, "\n\n")
+	endQuote := regexp.MustCompile(`\n> \n\n+`)
+	text = endQuote.ReplaceAllString(text, "\n\n")
+	text = endQuote.ReplaceAllString(text, "\n\n")
+
 	return text, nil
 }
 
@@ -246,24 +256,24 @@ func (ctx *TextifyTraverseContext) handleElement(node *html.Node) error {
 			prefix = "### "
 		}
 
-		ctx.emit("\n" + prefix)
+		ctx.emit("\n\n" + prefix)
 		if err := ctx.traverseChildren(node); err != nil {
 			return err
 		}
-		return ctx.emit("\n")
+		return ctx.emit("\n\n")
 
 	case atom.Blockquote:
 		ctx.FlushCitations()
+		//if err := ctx.emit("\n"); err != nil {
+		//	return err
+		//}
 		ctx.blockquoteLevel++
 		ctx.prefix = strings.Repeat(">", ctx.blockquoteLevel) + " "
-		if err := ctx.emit("\n"); err != nil {
-			return err
-		}
-		if ctx.blockquoteLevel == 1 {
-			if err := ctx.emit("\n"); err != nil {
-				return err
-			}
-		}
+		//if ctx.blockquoteLevel == 1 {
+		//	if err := ctx.emit("\n"); err != nil {
+		//		return err
+		//	}
+		//}
 		if err := ctx.traverseChildren(node); err != nil {
 			return err
 		}
@@ -272,7 +282,8 @@ func (ctx *TextifyTraverseContext) handleElement(node *html.Node) error {
 		if ctx.blockquoteLevel > 0 {
 			ctx.prefix += " "
 		}
-		return ctx.emit("\n\n")
+		//return ctx.emit("\n\n")
+		return ctx.emit("")
 
 	case atom.Div:
 
@@ -300,9 +311,10 @@ func (ctx *TextifyTraverseContext) handleElement(node *html.Node) error {
 			return err
 		}
 
-		//if content contains just one link, output a link instead of a bullet
-        const maxSingletonLinkLength = 50
-		if (len(testCtx.buf.String()) < maxSingletonLinkLength) && (len(testCtx.linkAccumulator.linkArray) == 1) {
+		//if content contains just one link, output a link instead of a bullet if within a specified number of
+		//words
+		maxSingletonLinkLength := ctx.options.ListItemToLinkWordThreshold
+		if (len(strings.Split(testCtx.buf.String(), " ")) < maxSingletonLinkLength) && (len(testCtx.linkAccumulator.linkArray) == 1) {
 			return ctx.emit("=> " + testCtx.linkAccumulator.linkArray[0].url + " " + testCtx.buf.String() + "\n")
 		}
 
@@ -420,13 +432,19 @@ func (ctx *TextifyTraverseContext) handleElement(node *html.Node) error {
 // paragraphHandler renders node children surrounded by double newlines.
 func (ctx *TextifyTraverseContext) paragraphHandler(node *html.Node) error {
 	ctx.CheckFlushCitations()
+
 	if err := ctx.emit("\n\n"); err != nil {
 		return err
 	}
+
 	if err := ctx.traverseChildren(node); err != nil {
 		return err
 	}
-	return ctx.emit("\n\n")
+	if err := ctx.emit("\n\n"); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // handleTableElement is only to be invoked when options.PrettyTables is active.
@@ -587,29 +605,28 @@ func (ctx *TextifyTraverseContext) emit(data string) error {
 	if data == "" {
 		return nil
 	}
-	var (
-		lines = ctx.breakLongLines(data)
-		err   error
-	)
+
+	var lines = []string{data}
+
 	for _, line := range lines {
 		runes := []rune(line)
 		startsWithSpace := unicode.IsSpace(runes[0]) || punctNoSpaceBefore(runes[0])
 		if !startsWithSpace && !ctx.endsWithSpace {
-			if err = ctx.buf.WriteByte(' '); err != nil {
+			if err := ctx.buf.WriteByte(' '); err != nil {
 				return err
 			}
 			ctx.lineLength++
 		}
 		ctx.endsWithSpace = unicode.IsSpace(runes[len(runes)-1]) || punctNoSpaceAfter(runes[len(runes)-1])
 		for _, c := range line {
-			if _, err = ctx.buf.WriteString(string(c)); err != nil {
+			if _, err := ctx.buf.WriteString(string(c)); err != nil {
 				return err
 			}
 			ctx.lineLength++
 			if c == '\n' {
 				ctx.lineLength = 0
 				if ctx.prefix != "" {
-					if _, err = ctx.buf.WriteString(ctx.prefix); err != nil {
+					if _, err := ctx.buf.WriteString(ctx.prefix); err != nil {
 						return err
 					}
 				}
@@ -617,49 +634,6 @@ func (ctx *TextifyTraverseContext) emit(data string) error {
 		}
 	}
 	return nil
-}
-
-const maxLineLen = 74
-
-func (ctx *TextifyTraverseContext) breakLongLines(data string) []string {
-	// Only break lines when in blockquotes.
-	if ctx.blockquoteLevel == 0 {
-		return []string{data}
-	}
-	var (
-		ret      = []string{}
-		runes    = []rune(data)
-		l        = len(runes)
-		existing = ctx.lineLength
-	)
-	if existing >= maxLineLen {
-		ret = append(ret, "\n")
-		existing = 0
-	}
-	for l+existing > maxLineLen {
-		i := maxLineLen - existing
-		for i >= 0 && !unicode.IsSpace(runes[i]) {
-			i--
-		}
-		if i == -1 {
-			// No spaces, so go the other way.
-			i = maxLineLen - existing
-			for i < l && !unicode.IsSpace(runes[i]) {
-				i++
-			}
-		}
-		ret = append(ret, string(runes[:i])+"\n")
-		for i < l && unicode.IsSpace(runes[i]) {
-			i++
-		}
-		runes = runes[i:]
-		l = len(runes)
-		existing = 0
-	}
-	if len(runes) > 0 {
-		ret = append(ret, string(runes))
-	}
-	return ret
 }
 
 func (ctx *TextifyTraverseContext) normalizeHrefLink(link string) string {
