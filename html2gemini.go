@@ -305,7 +305,7 @@ func (ctx *TextifyTraverseContext) handleElement(node *html.Node) error {
 	case atom.Li:
 
 		//a test context to examine the list element to see if it just has a single link
-		//in which case we'll output a link line
+		//in which case we'll output a link line, or no links in which case we output just a bullet
 		testCtx := TextifyTraverseContext{}
 		if err := testCtx.traverseChildren(node); err != nil {
 			return err
@@ -318,6 +318,12 @@ func (ctx *TextifyTraverseContext) handleElement(node *html.Node) error {
 			return ctx.emit("=> " + testCtx.linkAccumulator.linkArray[0].url + " " + testCtx.buf.String() + "\n")
 		}
 
+		//if no links, just emit a bullet with the text, ignoring any sub elements
+		if len(testCtx.linkAccumulator.linkArray) == 0 {
+			return ctx.emit("* " + testCtx.buf.String() + "\n")
+		}
+
+		//otherwise is mixed content, so keep traversing
 		if err := ctx.emit("* "); err != nil {
 			return err
 		}
@@ -392,7 +398,32 @@ func (ctx *TextifyTraverseContext) handleElement(node *html.Node) error {
 
 		return ctx.emit(hrefLink)
 
-	case atom.P, atom.Ul:
+	case atom.Ul:
+
+		return ctx.paragraphHandler(node)
+
+	case atom.P:
+
+		//a test context to examine the list element to see if it just has a single link
+		//in which case we'll output a link line, or no links in which case we output just a bullet
+		testCtx := TextifyTraverseContext{}
+		if err := testCtx.traverseChildren(node); err != nil {
+			return err
+		}
+
+		//if content contains just one link, output a link instead of a para if within a specified number of
+		//words
+		maxSingletonLinkLength := ctx.options.ListItemToLinkWordThreshold
+		if (len(strings.Split(testCtx.buf.String(), " ")) < maxSingletonLinkLength) && (len(testCtx.linkAccumulator.linkArray) == 1) {
+			return ctx.emit("=> " + testCtx.linkAccumulator.linkArray[0].url + " " + testCtx.buf.String() + "\n")
+		}
+
+		//if no links, just emit a para with the text, ignoring any sub elements
+		if len(testCtx.linkAccumulator.linkArray) == 0 {
+			return ctx.emit(testCtx.buf.String() + "\n")
+		}
+
+		//else - mixed content
 		return ctx.paragraphHandler(node)
 
 	case atom.Table, atom.Tfoot, atom.Th, atom.Tr, atom.Td:
