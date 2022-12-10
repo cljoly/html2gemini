@@ -237,6 +237,9 @@ func (ctx *TextifyTraverseContext) handleElement(node *html.Node) error {
 	prefix := ""
 
 	switch node.DataAtom {
+	case atom.Footer, atom.Nav:
+		return nil
+
 	case atom.Br:
 		return ctx.emit("\n")
 
